@@ -3,17 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SunPower | Admin User Monitor</title>
-    
-    <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
-    <script>
-      window.OneSignalDeferred = window.OneSignalDeferred || [];
-      OneSignalDeferred.push(async function(OneSignal) {
-        await OneSignal.init({
-          appId: "cf534965-d7ac-4aa4-acdd-8dbf30227a09",
-        });
-      });
-    </script>
+    <title>SunPower Admin | Firestore Monitor</title>
     
     <script src="https://www.gstatic.com/firebasejs/9.1.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.1.0/firebase-firestore-compat.js"></script>
@@ -22,143 +12,108 @@
     <style>
         :root { --sun-blue: #1e3a8a; --sun-yellow: #facc15; --dark-bg: #020617; --card-bg: #0f172a; }
         body { background-color: var(--dark-bg); font-family: 'Segoe UI', sans-serif; margin: 0; color: white; }
-        
-        .header { 
-            padding: 15px 20px; background: var(--sun-blue); 
-            display: flex; justify-content: space-between; align-items: center;
-            border-bottom: 3px solid var(--sun-yellow); position: sticky; top: 0; z-index: 100;
-        }
-
-        .stats-bar { background: #1e293b; padding: 10px 20px; font-size: 13px; color: #4ade80; display: flex; justify-content: space-between; }
-
-        .user-container { padding: 15px; }
-
-        .user-card {
-            background: var(--card-bg); border-radius: 12px; padding: 15px; margin-bottom: 12px;
-            border-left: 5px solid var(--sun-yellow); box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-            animation: slideIn 0.3s ease-out;
-        }
-        
-        @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-
-        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-        .user-name { font-size: 17px; font-weight: bold; color: var(--sun-yellow); }
-        .user-balance { font-size: 18px; color: #4ade80; font-weight: bold; }
-
-        .details-grid { 
-            display: grid; grid-template-columns: 1fr; gap: 8px; 
-            font-size: 13px; background: rgba(255,255,255,0.03); padding: 10px; border-radius: 8px;
-        }
-
-        .detail-item { color: #cbd5e1; display: flex; align-items: center; gap: 10px; }
-        .detail-item i { color: var(--sun-yellow); width: 15px; }
-
-        .loading-screen { text-align: center; padding: 50px; color: #94a3b8; font-size: 14px; }
-        #totalCount { background: white; color: black; padding: 2px 10px; border-radius: 10px; font-weight: bold; }
-        
-        /* New User Flash Alert */
-        .new-alert { color: #facc15; font-weight: bold; animation: blink 1s infinite; display: none; }
-        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
+        .header { padding: 15px; background: var(--sun-blue); display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid var(--sun-yellow); position: sticky; top: 0; z-index: 100; }
+        .user-card { background: var(--card-bg); border-radius: 12px; padding: 15px; margin: 10px; border-left: 5px solid var(--sun-yellow); animation: fadeIn 0.5s; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .user-name { color: var(--sun-yellow); font-weight: bold; font-size: 16px; }
+        #totalCount { background: white; color: black; padding: 2px 12px; border-radius: 15px; font-weight: bold; }
+        .status { font-size: 12px; padding: 10px; color: #4ade80; text-align: center; background: #1e293b; }
     </style>
 </head>
 <body>
 
 <div class="header">
-    <div style="display:flex; align-items:center; gap:10px;">
-        <i class="fas fa-user-shield" style="font-size: 20px; color: var(--sun-yellow);"></i>
-        <h3 style="margin:0;">Admin Monitor</h3>
-    </div>
+    <h3><i class="fas fa-user-shield"></i> Admin Monitor</h3>
     <div id="totalCount">0</div>
 </div>
+<div class="status" id="dbStatus"><i class="fas fa-sync-alt fa-spin"></i> Firestore शी कनेक्ट होत आहे...</div>
 
-<div class="stats-bar">
-    <span><i class="fas fa-bolt"></i> Live Connection Active</span>
-    <span id="newBadge" class="new-alert">🚨 NEW USER!</span>
-</div>
-
-<div class="user-container" id="userList">
-    <div class="loading-screen">
-        <i class="fas fa-spinner fa-spin"></i><br><br>
-        डेटा लोड होत आहे...
-    </div>
+<div id="userList">
+    <div style="text-align:center; padding:50px; color: #94a3b8;">डेटा लोड होत आहे...</div>
 </div>
 
 <script>
+    // २. तुझी Firebase Configuration
     const firebaseConfig = {
-        apiKey: "AIzaSyA3k5ByUuJ-1jtVovgZMxsw1LBaBkn_nDo",
+        apiKey: "AIzaSyA3k5ByUuJ-1jtVovgZMsw1LBaBkn_nDo",
         authDomain: "new-investment-web.firebaseapp.com",
         projectId: "new-investment-web",
-        storageBucket: "new-investment-web.firebasestorage.app",
+        storageBucket: "new-investment-web.appspot.com",
         messagingSenderId: "1078188475858",
         appId: "1:1078188475858:web:b3777ea127aae8e083740b"
     };
 
     firebase.initializeApp(firebaseConfig);
-    const db = firebase.firestore();
+    const db = firebase.firestore(); // Firestore database सुरु केला
 
-    let isInitialLoad = true; 
+    const ONESIGNAL_APP_ID = "cf534965-d7ac-4aa4-acdd-8dbf30227a09";
+    const ONESIGNAL_REST_KEY = "os_v2_app_z5juszoxvrfkjlg5rw7tait2bebfjphn2f7ebpni33n3hafmxh2hi4qpnhhcnlg5bacehq4ntkbpdgef3pahibrorcyypk64a56ksby";
 
-    // नवीन युजर्सवर लक्ष ठेवण्यासाठी Snapshot Listener
-    db.collection("users").orderBy("mobile", "desc").onSnapshot((querySnapshot) => {
-        const userListDiv = document.getElementById('userList');
-        const newBadge = document.getElementById('newBadge');
+    let isInitialLoad = true;
+
+    // ३. Firestore मधून 'users' कलेक्शनचे Realtime अपडेट्स मिळवणे
+    db.collection("users").onSnapshot((querySnapshot) => {
+        document.getElementById('dbStatus').innerHTML = '<i class="fas fa-check-circle"></i> Firestore Live Connected';
         
-        // जर नवीन बदल झाला असेल तर (नवीन युजर ॲड झाला तर)
-        querySnapshot.docChanges().forEach((change) => {
-            if (change.type === "added" && !isInitialLoad) {
-                // १. मोबाईलवर नोटिफिकेशन पाठवा
-                showWebNotification(change.doc.data().name);
-                
-                // २. स्क्रीनवर बॅज दाखवा
-                newBadge.style.display = "inline";
-                setTimeout(() => { newBadge.style.display = "none"; }, 5000);
-            }
-        });
-
+        const userListDiv = document.getElementById('userList');
         userListDiv.innerHTML = "";
         let count = 0;
 
+        // नवीन युजर ॲड झाला का ते तपासणे
+        querySnapshot.docChanges().forEach((change) => {
+            if (change.type === "added" && !isInitialLoad) {
+                console.log("New User:", change.doc.data().name);
+                sendPushNotification(change.doc.data().name);
+            }
+        });
+
+        // सर्व युजर्सची लिस्ट बनवणे
         querySnapshot.forEach((doc) => {
             const user = doc.data();
             count++;
-            
             const card = `
                 <div class="user-card">
-                    <div class="card-header">
-                        <div class="user-name"><i class="fas fa-user-circle"></i> ${user.name || 'No Name'}</div>
-                        <div class="user-balance">₹${user.balance || 0}</div>
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span class="user-name"><i class="fas fa-user-circle"></i> ${user.name || 'Unknown'}</span>
+                        <span style="color:#4ade80; font-weight:bold;">₹${user.balance || 0}</span>
                     </div>
-                    <div class="details-grid">
-                        <div class="detail-item"><i class="fas fa-phone"></i> Mobile: ${user.mobile || 'N/A'}</div>
-                        <div class="detail-item"><i class="fas fa-university"></i> Bank: ${user.bank_name || 'Not Linked'}</div>
-                        <div class="detail-item"><i class="fas fa-id-card-alt"></i> A/C: ${user.account_number || 'N/A'}</div>
-                        <div class="detail-item"><i class="fas fa-key"></i> IFSC: ${user.ifsc || 'N/A'}</div>
+                    <div style="font-size:13px; color:#cbd5e1; margin-top:8px;">
+                        <i class="fas fa-phone-alt"></i> ${user.mobile || 'N/A'}<br>
+                        <i class="fas fa-university"></i> ${user.bank_name || 'N/A'}
                     </div>
                 </div>
             `;
-            userListDiv.insertAdjacentHTML('beforeend', card);
+            userListDiv.insertAdjacentHTML('afterbegin', card);
         });
 
         document.getElementById('totalCount').innerText = count;
-        isInitialLoad = false; 
+        isInitialLoad = false;
 
         if(count === 0) {
-            userListDiv.innerHTML = '<div class="loading-screen">अजून कोणीही युजर नाही!</div>';
+            userListDiv.innerHTML = '<div style="text-align:center; padding:50px;">अजून कोणीही मेंबर नाही.</div>';
         }
+    }, (error) => {
+        console.error("Firestore Error: ", error);
+        document.getElementById('dbStatus').innerHTML = '<i class="fas fa-exclamation-triangle" style="color:red;"></i> Rules चेक करा!';
     });
 
-    // ब्राउझर नोटिफिकेशन फंक्शन
-    function showWebNotification(userName) {
-        if (!("Notification" in window)) return;
-        
-        if (Notification.permission === "granted") {
-            new Notification("🚨 New Member Joined!", {
-                body: userName + " नुकताच SunPower मध्ये ॲड झाला आहे.",
-                icon: "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/pngs/solid/user-plus.png"
-            });
-        } else if (Notification.permission !== "denied") {
-            Notification.requestPermission();
-        }
+    // वनसिग्नल नोटिफिकेशन फंक्शन
+    function sendPushNotification(userName) {
+        fetch("https://onesignal.com/api/v1/notifications", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json; charset=utf-8",
+                "Authorization": "Basic " + ONESIGNAL_REST_KEY
+            },
+            body: JSON.stringify({
+                app_id: ONESIGNAL_APP_ID,
+                included_segments: ["Total Subscriptions"], 
+                contents: { "en": "🚨 नवीन मेंबर: " + userName + " नुकताच जॉईन झाला आहे!" },
+                headings: { "en": "SunPower Alert" }
+            })
+        })
+        .then(response => response.json())
+        .then(data => console.log("Sent:", data));
     }
 </script>
 
