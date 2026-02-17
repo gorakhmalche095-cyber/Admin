@@ -5,6 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SunPower | Admin User Monitor</title>
     
+    <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+    <script>
+      window.OneSignalDeferred = window.OneSignalDeferred || [];
+      OneSignalDeferred.push(async function(OneSignal) {
+        await OneSignal.init({
+          appId: "cf534965-d7ac-4aa4-acdd-8dbf30227a09",
+        });
+      });
+    </script>
+    
     <script src="https://www.gstatic.com/firebasejs/9.1.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.1.0/firebase-firestore-compat.js"></script>
     
@@ -19,14 +29,17 @@
             border-bottom: 3px solid var(--sun-yellow); position: sticky; top: 0; z-index: 100;
         }
 
-        .stats-bar { background: #1e293b; padding: 10px 20px; font-size: 13px; color: #4ade80; }
+        .stats-bar { background: #1e293b; padding: 10px 20px; font-size: 13px; color: #4ade80; display: flex; justify-content: space-between; }
 
         .user-container { padding: 15px; }
 
         .user-card {
             background: var(--card-bg); border-radius: 12px; padding: 15px; margin-bottom: 12px;
             border-left: 5px solid var(--sun-yellow); box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            animation: slideIn 0.3s ease-out;
         }
+        
+        @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
         .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
         .user-name { font-size: 17px; font-weight: bold; color: var(--sun-yellow); }
@@ -42,6 +55,10 @@
 
         .loading-screen { text-align: center; padding: 50px; color: #94a3b8; font-size: 14px; }
         #totalCount { background: white; color: black; padding: 2px 10px; border-radius: 10px; font-weight: bold; }
+        
+        /* New User Flash Alert */
+        .new-alert { color: #facc15; font-weight: bold; animation: blink 1s infinite; display: none; }
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } 100% { opacity: 1; } }
     </style>
 </head>
 <body>
@@ -49,24 +66,24 @@
 <div class="header">
     <div style="display:flex; align-items:center; gap:10px;">
         <i class="fas fa-user-shield" style="font-size: 20px; color: var(--sun-yellow);"></i>
-        <h3 style="margin:0;">User Monitor</h3>
+        <h3 style="margin:0;">Admin Monitor</h3>
     </div>
     <div id="totalCount">0</div>
 </div>
 
 <div class="stats-bar">
-    <i class="fas fa-bolt"></i> Real-time Firestore Connection Active
+    <span><i class="fas fa-bolt"></i> Live Connection Active</span>
+    <span id="newBadge" class="new-alert">🚨 NEW USER!</span>
 </div>
 
 <div class="user-container" id="userList">
     <div class="loading-screen">
         <i class="fas fa-spinner fa-spin"></i><br><br>
-        डेटा लोड होत आहे, थोडा वेळ थांबा...
+        डेटा लोड होत आहे...
     </div>
 </div>
 
 <script>
-    // तुझी Firestore Configuration
     const firebaseConfig = {
         apiKey: "AIzaSyA3k5ByUuJ-1jtVovgZMxsw1LBaBkn_nDo",
         authDomain: "new-investment-web.firebaseapp.com",
@@ -79,9 +96,25 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    // Firestore मधून 'users' कलेक्शनचा डेटा वाचणे
-    db.collection("users").onSnapshot((querySnapshot) => {
+    let isInitialLoad = true; 
+
+    // नवीन युजर्सवर लक्ष ठेवण्यासाठी Snapshot Listener
+    db.collection("users").orderBy("mobile", "desc").onSnapshot((querySnapshot) => {
         const userListDiv = document.getElementById('userList');
+        const newBadge = document.getElementById('newBadge');
+        
+        // जर नवीन बदल झाला असेल तर (नवीन युजर ॲड झाला तर)
+        querySnapshot.docChanges().forEach((change) => {
+            if (change.type === "added" && !isInitialLoad) {
+                // १. मोबाईलवर नोटिफिकेशन पाठवा
+                showWebNotification(change.doc.data().name);
+                
+                // २. स्क्रीनवर बॅज दाखवा
+                newBadge.style.display = "inline";
+                setTimeout(() => { newBadge.style.display = "none"; }, 5000);
+            }
+        });
+
         userListDiv.innerHTML = "";
         let count = 0;
 
@@ -95,30 +128,38 @@
                         <div class="user-name"><i class="fas fa-user-circle"></i> ${user.name || 'No Name'}</div>
                         <div class="user-balance">₹${user.balance || 0}</div>
                     </div>
-                    
                     <div class="details-grid">
                         <div class="detail-item"><i class="fas fa-phone"></i> Mobile: ${user.mobile || 'N/A'}</div>
                         <div class="detail-item"><i class="fas fa-university"></i> Bank: ${user.bank_name || 'Not Linked'}</div>
-                        <div class="detail-item"><i class="fas fa-id-card-alt"></i> Account: ${user.account_number || 'N/A'}</div>
+                        <div class="detail-item"><i class="fas fa-id-card-alt"></i> A/C: ${user.account_number || 'N/A'}</div>
                         <div class="detail-item"><i class="fas fa-key"></i> IFSC: ${user.ifsc || 'N/A'}</div>
-                    </div>
-
-                    <div style="font-size:10px; color:#64748b; margin-top:10px; text-align:right;">
-                        User ID: ${doc.id}
                     </div>
                 </div>
             `;
-            userListDiv.insertAdjacentHTML('afterbegin', card);
+            userListDiv.insertAdjacentHTML('beforeend', card);
         });
+
         document.getElementById('totalCount').innerText = count;
+        isInitialLoad = false; 
 
         if(count === 0) {
             userListDiv.innerHTML = '<div class="loading-screen">अजून कोणीही युजर नाही!</div>';
         }
-    }, (error) => {
-        console.error("Error: ", error);
-        document.getElementById('userList').innerHTML = '<div class="loading-screen" style="color:red;">एरर: Rules चेक करा किंवा नेट तपासा!</div>';
     });
+
+    // ब्राउझर नोटिफिकेशन फंक्शन
+    function showWebNotification(userName) {
+        if (!("Notification" in window)) return;
+        
+        if (Notification.permission === "granted") {
+            new Notification("🚨 New Member Joined!", {
+                body: userName + " नुकताच SunPower मध्ये ॲड झाला आहे.",
+                icon: "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/pngs/solid/user-plus.png"
+            });
+        } else if (Notification.permission !== "denied") {
+            Notification.requestPermission();
+        }
+    }
 </script>
 
 </body>
